@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { OrbitControls } from 'jsm/controls/OrbitControls.js';
 import spline from "./spline.js";
 //glow components
 import { EffectComposer } from "jsm/postprocessing/EffectComposer.js";
@@ -8,11 +7,12 @@ import { UnrealBloomPass } from "jsm/postprocessing/UnrealBloomPass.js";
 
 
 // system variables
-const w = window.innerWidth;
-const h = window.innerHeight;
+let w = window.innerWidth;
+let h = window.innerHeight;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, w / h, 0.1, 1000);
 camera.position.z = 5;
+scene.add(camera);
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(w, h);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -20,10 +20,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 scene.fog = new THREE.FogExp2(0x000000, 0.3);   // Adding fog to the scene, first parameter is colour and second is the desnity
 
-//camera pan
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.dampingFactor = 0.03;
+
 
 // post-processing
 const renderScene = new RenderPass(scene, camera);
@@ -56,6 +53,7 @@ const boxSize = 0.075;
 const boxGeo = new THREE.BoxGeometry(boxSize,boxSize,boxSize);
 
 for (let i = 0; i < numBoxes; i += 1) {
+
   const boxMat = new THREE.MeshBasicMaterial ({
     color: 0xffffff, 
     wireframe: true});
@@ -74,19 +72,32 @@ for (let i = 0; i < numBoxes; i += 1) {
     Math.random() * Math.PI,
   );
   
-
   //Create the new boxes, the new boxes only show the outside faces
   const edgeBox = new THREE.EdgesGeometry(boxGeo, 0.2)
   const color = new THREE.Color().setHSL(pb, 1, 0.5)
   const edgeBoxMaterial = new THREE.LineBasicMaterial({color});
   const finalBox = new THREE.LineSegments(edgeBox, edgeBoxMaterial);
+
   //Set the position of the final boxes
   finalBox.position.copy(pos);
   finalBox.rotation.set(rote.x, rote.y, rote.z);
   scene.add(finalBox);
+}
 
 
+let mousepos = new THREE.Vector2();
+const crosshairs = new THREE.Group();
+crosshairs.position.z = -1;
+camera.add(crosshairs);
+const crossMaterial = new THREE.LineBasicMaterial( {color: 0xffffff} );
+const lineGeo = new THREE.BufferGeometry();
+const lineVerts = [0, 0.05, 0, 0, 0.02, 0];
+lineGeo.setAttribute("position", new THREE.Float32BufferAttribute(lineVerts, 3));
 
+for (let i=0; i < 4; i +=1) {
+  const line = new THREE.Line(lineGeo, crossMaterial);
+  line.rotation.z = i * 0.5 * Math.PI;
+  crosshairs.add(line)
 }
 
 
@@ -111,7 +122,27 @@ function moveCamera(t){
 function animate(t = 0) {
   requestAnimationFrame(animate);
   moveCamera(t)
+  crosshairs.position.set(mousepos.x, mousepos.y, -1);
   composer.render(scene, camera);  //From post-ops, we input composer instead of the renderer for the GLOW EFFECT
-  controls.update();
 }
 animate();
+
+function onMouseMove(evt) {
+  w = window.innerWidth;
+  h = window.innerHeight;
+  let aspect = w / h;
+  let fudge = { x: aspect * 0.75, y: 0.75 };
+  mousepos.x = ((evt.clientX / w) * 2 - 1) * fudge.x;
+  mousepos.y = (-1 * (evt.clientY / h) * 2 + 1) * fudge.y;
+}
+window.addEventListener("mousemove", onMouseMove, false);
+
+function handleWindowResize() {
+  w = window.innerWidth;
+  h = window.innerHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+  composer.setSize(w, h);
+}
+window.addEventListener("resize", handleWindowResize, false);
